@@ -7,6 +7,7 @@ import ROSLIB from '../shims/roslib/ROSLIB.js';
  */
 
 export class SceneNode extends THREE.Object3D {
+  type = 'SceneNode';
 
   /**
    * A SceneNode can be used to keep track of a 3D object with respect to a ROS frame within a scene.
@@ -14,25 +15,26 @@ export class SceneNode extends THREE.Object3D {
    * @constructor
    * @param options - object with following keys:
    *
-   *  * tfClient - a handle to the TF client
+   *  * tfClient (optional) - a TFClient instance. If one is not provided, use setTfClient() to optionally provide one later, otherwise the SceneNode will not be connected to any network data.
    *  * frameID - the frame ID this object belongs to
    *  * pose (optional) - the pose associated with this object
-   *  * object - the THREE 3D object to be rendered
+   *  * object (optional) - the THREE 3D object to be wrapped. If not provided, you can add one later with the add() method.
    */
   constructor(options) {
     super();
     options = options || {};
     var that = this;
-    this.tfClient = options.tfClient;
     this.frameID = options.frameID;
     var object = options.object;
     this.pose = options.pose || new ROSLIB.Pose();
 
-    // Do not render this object until we receive a TF update
-    this.visible = false;
+    // Do not render this object until we receive a TF update, unless specified otherwise.
+    this.visible = options.visible ?? false;
 
-    // add the model
-    this.add(object);
+    // For convenience, add the model if provided via options.
+    if (object) {
+      this.add(object);
+    }
 
     // set the inital pose
     this.updatePose(this.pose);
@@ -49,6 +51,29 @@ export class SceneNode extends THREE.Object3D {
       that.updatePose(poseTransformed);
       that.visible = true;
     };
+
+    this.setTfClient(options.tfClient);
+  };
+
+  /**
+   * Set the tfClient. Unsubscribes from the previous one if any, then
+   * subscribes to the new one. This can be useful for creating SceneNodes
+   * without a network connection for static rendering. The setTfClient method
+   * can be used to give the SceneNode a TFClient later, which can be useful
+   * for "hydrating" a scene that was loaded via JSON for example.
+   *
+   * @param tfClient - The new tfClient.
+   */
+  setTfClient(tfClient) {
+    if (!tfClient) {
+      return;
+    }
+
+    if (this.tfClient) {
+      this.unsubscribeTf();
+    }
+
+    this.tfClient = tfClient;
 
     // listen for TF updates
     this.tfClient.subscribe(this.frameID, this.tfUpdate);
@@ -69,4 +94,29 @@ export class SceneNode extends THREE.Object3D {
   unsubscribeTf() {
     this.tfClient.unsubscribe(this.frameID, this.tfUpdate);
   };
+
+  toJSON(meta) {
+    const output = super.toJSON(meta);
+    const {object} = output;
+
+    // We only care about these properties for serialization and subsequently
+    // loading a static scene. tcClient is not needed as the scene will be
+    // static.
+    object.frameID = this.frameID;
+    object.pose = {
+      position: {
+        x: this.pose.position.x,
+        y: this.pose.position.y,
+        z: this.pose.position.z,
+      },
+      orientation: {
+        x: this.pose.orientation.x,
+        y: this.pose.orientation.y,
+        z: this.pose.orientation.z,
+        w: this.pose.orientation.w,
+      },
+    };
+
+    return output;
+  }
 }

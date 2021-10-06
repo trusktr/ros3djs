@@ -9,7 +9,7 @@
   "type": "module",
   "dependencies": {
     "roslib": "trusktr/roslibjs#278f847e8be560822063470c69fbd858998e36ef",
-    "three": "^0.89.0"
+    "three": "trusktr/three.js#fe52b24d90fbbfacded09287bb7660e6cf2ef354"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^20.0.0",
